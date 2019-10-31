@@ -15,12 +15,6 @@ summary(card)
 # apply(is.na(card), MARGIN=2, sum)
 # card.cld <- na.omit(card)
 # apply(is.na(card.cld), MARGIN=2, sum)
-card.cld <- card.cld %>%
-  mutate()
-
-card %>%
-  mutate(reg666=as.factor(reg666)) %>%
-  summary()
 
 
 ### IV by package
