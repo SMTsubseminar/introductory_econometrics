@@ -1,0 +1,159 @@
+---
+title: "Heteroskedasticity and GLS"
+author: "Ryuya Ko"
+date: "11/27/2019"
+documentclass: ltjarticle
+output: 
+  pdf_document: 
+    latex_engine: lualatex 
+    keep_tex: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 概要
+
+- 分散均一の仮定が成り立たない場合の分析手法として、GLS(Generalized Least Square)を復習する
+    - autocorrelationについては除外して考える
+- 分散不均一の場合に関するRを用いたデータ分析の方法を確認する
+    - GLSの実装
+    - robust covariance matrixを用いた検定
+
+## Heteroskedasticity
+
+今までは簡単化のため分散均一の過程を置いてきた。すなわち、全てのiについて以下が成り立つ:
+
+$$ Var(\varepsilon_i | x_i) = \sigma^2.$$
+
+しかし、実際のデータではこのような仮定は成り立たないことが多い。
+例えば、都道府県ごとの一人あたりGDPを考える。都道府県jの居住者iについて, 一人あたりGDPを$y_{ij}$, 年齢や職種などの説明変数の(K, 1)ベクトルを$x_{ij}$, 撹乱項を$\varepsilon_{ij}$として表し、
+
+$$ y_i = x_i^\prime \beta + \varepsilon_i. $$
+
+という関係式が成り立つと仮定する。その他ランダムサンプリングなどの仮定も(分散均一性を含めて)成り立つことを仮定する。
+
+一方で手に入るデータは都道府県平均の一人あたりGDPである。$\bar{y}_j, \bar{x}_j, \bar{\varepsilon}_j$をそれぞれ平均値として表すと
+
+$$ \bar{y}_j =  \bar{x}^\prime_j\beta + \bar{\varepsilon}_j, $$
+
+という関係が成り立つことがわかる。
+
+ここで各都道府県jの人口数を$n_j$とすると、$Var(\bar{\varepsilon}_j | \bar{x}_j) = \frac{\sigma^2}{n_j^2}$となり、我々が入手できるデータについては分散均一性が成り立たないことがわかる。
+
+### 分散不均一なデータの確認
+
+実際のデータを見ていく。使用するのは米国のGPAに関するデータ。まずはワーキングディレクトリを設定して必要なライブラリを読み込んでいく。`lmtest`ライブラリを使うため、インストールしていない場合は`install.package`でRに落としておくこと。
+
+ライブラリを読み込んだら`help`でデータを確認する。`spring`の値で学期が別れているので、後々のために数値型から因子型に変換する。`head`でざっと中身だけ確認しよう。
+
+```{r environment, results='hide'}
+setwd('~/econ/subsemi/introductory_econometrics')
+library(dplyr);library(ggplot2);library(wooldridge)
+library(lmtest);library(car);library(estimatr)
+```
+
+```{r read_gpa, echo=TRUE, results='hide'}
+data("gpa3");help(gpa3)
+gpa3[,'spring'] <- gpa3[, 'spring'] %>% as.factor()
+head(gpa3)
+```
+
+
+ggplotを用いてプロットする。今回はもっとも関係のありそうな`SAT`のスコアと`cumgpa`との間で散布図を描いてみる。
+
+
+```{r plotting_gpa}
+ggplot(data=gpa3, aes(x=sat, y=cumgpa, color=spring))+
+  geom_point()+
+  theme_bw()
+```
+
+
+もちろん他の説明変数で条件付けたときの値を見なければはっきりとしたことは言えないが、なんとなく不均一分散っぽい感じがする。
+
+
+以下、このデータなどを使ってRでの実装を行う。漸近分散などについては時間が許せば板書で説明したい。
+
+
+### OLS回帰と検定
+
+GLS・WLSを行う前に、robust-covariance matrixを用いた実装を考える。
+
+
+`lmtest`パッケージの関数を用いることで、`lm`オブジェクトに関して各種検定をrobust-covarianceを用いて行うことができる
+
+- `coeftest`関数を用いることでt-testを行うことができる
+
+```{r lm_gpa}
+reg <- lm(cumgpa~sat+hsperc+tothrs+female+black+white,
+          data=gpa3, subset=(spring==1))
+summary(reg)
+
+coeftest(reg) #t-test
+coeftest(reg, vcov. = hccm) # t-test using robust-cov
+```
+
+- `linearHypothesis`を使うことで、指定した帰無仮説に関するF-testを行うことができる。
+
+```{r ftest}
+nullhypo <- c("white = 0", "black = 0")
+linearHypothesis(reg, nullhypo) # homoskedasticity-based F-test
+linearHypothesis(reg, nullhypo, vcov.=hccm) # F test using White's robust covariance matrix
+```
+
+
+また、`estimatr`パッケージの`lm_robust`関数を使うことでも同じことができる:
+
+```{r lm_robust}
+reg.rob <- lm_robust(cumgpa~sat+hsperc+tothrs+female+black+white,
+                     data=gpa3, subset=(spring==1))
+summary(reg.rob)
+linearHypothesis(reg.rob, nullhypo)
+```
+
+また、Breush-Pagan testを用いることで帰無仮説を分散均一($\sigma^2_i = \sigma^2$)として検定することができる:
+
+```{r bptest}
+bptest(reg)
+```
+
+以上のようにOLS推定量を用いても分散不均一に対してロバストな検定は可能である。robust-covariance matrixを使った推定は便利ではあるが、明らかに分散不均一が認められる場合、efficientではない。したがって、BP検定などで分散不均一が認められた場合、WLS・GLSを用いる必要がある。
+
+### WLS
+
+ここでは、$Cov(\varepsilon_i, \varepsilon_j) = 0$かつ$Var(\varepsilon_i) = \sigma^2 w_i$と書けるような誤差項を考える。
+
+ここで、$y^*_i = w_iy_i, x^*_i = w_ix_i, \varepsilon^* = w_i\varepsilon_i$とすることで$y^*_i$を$x^*_i$に回帰することでBLUEな推定量を得る。
+
+```{r wls}
+data("k401ksubs");help(k401ksubs)
+
+ols.401 <-lm(nettfa~inc+male+e401k+age, data=k401ksubs, subset=(fsize==1)) # OLS
+wls.401 <- lm(nettfa~inc+male+e401k+age, data=k401ksubs, subset=(fsize==1),
+   weight=1/inc) # WLS
+
+summary(ols.401)
+summary(wls.401)
+```
+
+### FGLS
+
+FGLS(Feasible Generalized Least Square)は、重みの関数形がわかっていないときに行う。
+
+```{r fgls}
+df <- gpa3 %>%
+  filter(spring == 1) %>%
+  as.data.frame()
+reg <- lm(cumgpa~sat+hsperc+tothrs+female+black+white, data=df)
+df[,'log_resid_sq'] <- log(resid(reg)^2)
+var.reg <- lm(log_resid_sq~sat+hsperc+tothrs+female+black+white, data=df)
+w <- 1/exp(fitted(var.reg))
+fgls.reg <- lm(cumgpa~sat+hsperc+tothrs+female+black+white, data=df, weights=w)
+summary(fgls.reg)
+summary(reg)
+```
+
+若干ではあるが、標準誤差が全体的に小さくなっていることがわかる。
