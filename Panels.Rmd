@@ -3,7 +3,7 @@ title: "Panel data"
 author: "Ryuya Ko"
 date: "12/6/2019"
 documentclass: ltjarticle
-output: 
+output:  
   pdf_document: 
     latex_engine: lualatex 
     keep_tex: true
@@ -68,9 +68,9 @@ $$
 
 ## Rによる実装
 ```{r setting}
-setwd('~/econ/subsemi/introductory_econometrics/')
+# setwd('~/econ/subsemi/introductory_econometrics/')
 library(dplyr);library(wooldridge);
-library(plm)
+library(plm);library(stargazer)
 ```
 
 
@@ -96,3 +96,38 @@ reg.fe <- plm(lwage~married+union+factor(year)*educ,
               data=p.df, model="within")
 summary(reg.fe)
 ```
+
+
+# ランダム効果モデル
+
+(板書)
+
+## Rでの実装
+
+`pvar`関数で時間変動、個人変動の有無を変数ごとに確認できる
+```{r time_var}
+pvar(p.df)
+```
+
+モデルの推定自体は固定効果モデルと同様に行うことができる。比較のため, OLSを含めてstargazerで出力する。
+
+```{r est_re}
+p.df$yr <- p.df$year %>% as.factor()
+reg.ols <- plm(lwage~educ+black+hisp+exper+I(exper^2)+married+union+yr,
+               data=p.df, model='pooling')
+reg.re <- plm(lwage~educ+black+hisp+exper+I(exper^2)+married+union+yr,
+               data=p.df, model='random')
+reg.fe <- plm(lwage~I(exper^2)+married+union+yr,
+              data=p.df, model="within")
+stargazer(reg.ols, reg.re, reg.fe, type='text',
+          column.labels=c("OLS", "RE", "FE"), keep.stat=c("n", "rsq"),
+          keep=c("educ", "bl", "hi", "exp", "mar", "uni"))
+```
+
+また、モデルの特定化検定は、ハウスマン検定を用いることができる。
+
+```{r hausman_test}
+phtest(reg.fe, reg.re)
+```
+
+有意水準5%以下でランダム効果モデルが正しい(個別効果の平均は0である)という帰無仮説が棄却された(板書)
