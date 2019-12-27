@@ -97,10 +97,18 @@ X <- catholic[, c('const', 'read12', 'math12',
 ```
 
 ```{r mle}
-# function(beta, obs){
-#   beta %*% 
-# }
+log.likelihood <- function(beta){
+  cdf <- pnorm(as.matrix(X) %*% beta)
+  likelihood <- t(y) %*% log(cdf) + t(1-y) %*% log(1-cdf)
+  return(-likelihood)
+}
+```
+```{r test}
+log.likelihood(beta)
 ```
 
-
-
+```{r optim}
+res <- optim(beta, log.likelihood, method='BFGS')
+res$value
+res$par
+```
