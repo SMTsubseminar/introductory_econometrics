@@ -1,0 +1,113 @@
+\documentclass{ltjsarticle}
+
+% 日本語プリアンブル
+
+% \usepackage[no-math]{fontspec}
+% \setmainfont[BoldFont=Times Bold, ItalicFont=Times Italic, BoldItalicFont=Times Bold Italic]{Times}
+% \setsansfont[BoldFont=Helvetica Neue Bold, ItalicFont=Helvetica Neue Italic, BoldItalicFont=Helvetica Neue Bold Italic]{Helvetica Neue}
+% \setmonofont{Menlo}
+\usepackage{luatexja-fontspec}
+\usepackage[hiragino-pron]{luatexja-preset}
+
+
+
+%%%%%% biblatexを使う用の設定
+% hyperref
+% \usepackage[unicode,hidelinks,pdfusetitle]{hyperref}
+% \usepackage[pdfencoding=auto,pdfa]{hyperref} % PDF/A compatible
+% \usepackage[backend=biber, natbib=true, style=numeric, sorting=none]{biblatex}
+\usepackage[style=authoryear, 
+backend=biber, 
+giveninits=true,
+uniquelist = false, 
+uniquename=init,
+isbn=false, 
+maxcitenames=3,
+dashed=false, 
+maxbibnames=999,
+doi=false,
+url=false]{biblatex}
+\addbibresource{myreference.bib}
+
+\DeclareDelimFormat{nameyeardelim}{\addcomma\space}
+
+%\setlength{\bibhang}{0pt}
+
+\DeclareNameAlias{sortname}{family-given}
+
+\renewcommand*{\labelnamepunct}{\addspace}
+
+\DeclareFieldFormat
+  [article,inbook,incollection,inproceedings,patent,thesis,unpublished]
+  {title}{#1}
+
+\DeclareFieldFormat{titlecase}{\MakeSentenceCase*{#1}}
+
+\renewbibmacro*{in:}{%
+  \ifentrytype{article}
+    {\setunit{\addcomma\space}}
+    {\printtext{\bibstring{in}\intitlepunct}}}
+
+\DeclareFieldFormat{journaltitlecase}{#1}
+
+\renewbibmacro*{journal}{%
+  \ifboolexpr{
+    test {\iffieldundef{journaltitle}}
+    and
+    test {\iffieldundef{journalsubtitle}}
+  }
+    {}
+    {\printtext[journaltitle]{%
+       \printfield[journaltitlecase]{journaltitle}%
+       \setunit{\subtitlepunct}%
+       \printfield[journaltitlecase]{journalsubtitle}}}}
+
+\renewbibmacro*{volume+number+eid}{%
+  \printfield{volume}%
+  \setunit{\addcomma\space}%
+  \printfield{eid}}
+
+\DeclareFieldFormat[article,periodical]{volume}{\mkbibbold{#1}}% volume of a journal
+
+\DeclareFieldFormat{pages}{#1}
+
+
+% 日本語文献を引用す際に見た目を調整
+\newbibmacro*{finalnamedelim:{japanese}}{%
+  \ifnumgreater{\value{liststop}}{2}{\finalandcomma}{}%
+  \addspace\multinamedelim
+}
+\renewcommand*{\finalnamedelim}{%
+  \iflistundef{language}
+  {\ifnumgreater{\value{liststop}}{2}{\finalandcomma}{}%
+  \addspace\bibstring{and}\space}
+  {\usebibmacro*{finalnamedelim:\strlist{language}}}
+}
+\newbibmacro*{name:given-family:{japanese}}[4]{%
+  \usebibmacro{name:delim}{#1#2}\usebibmacro{name:hook}{#1#2}#1\bibnamedelimc#2}
+\DeclareNameFormat{given-family}{%
+  \iflistundef{language}{%
+    \ifgiveninits
+      {\usebibmacro{name:given-family}{\namepartfamily}{\namepartgiveni}{\namepartprefix}{\namepartsuffix}}
+      {\usebibmacro{name:given-family}{\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+  }
+  {\usebibmacro*{name:given-family:\strlist{language}}{\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+  \usebibmacro{name:andothers}
+}
+
+%%%%
+
+
+\newcommand*{\figuretitle}[1]{%
+    {\centering%   <--------  will only affect the title because of the grouping (by the
+    \textbf{#1}%              braces before \centering and behind \medskip). If you remove
+    \par\medskip}%            these braces the whole body of a {figure} env will be centered.
+}
+
+\begin{document}
+引用\textcite{hoge}はこのようにできる．こういうやり方(\cite{hogehoge})もある.
+
+\printbibliography[title=参考文献]
+
+
+\end{document}

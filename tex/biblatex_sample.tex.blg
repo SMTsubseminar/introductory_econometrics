@@ -1,0 +1,5 @@
+[0] Config.pm:304> INFO - This is Biber 2.13
+[0] Config.pm:307> INFO - Logfile is 'biblatex_sample.tex.blg'
+[54] biber-darwin:315> INFO - === 日  2 23, 2020, 18:32:34
+[259] Utils.pm:316> ERROR - Cannot find 'biblatex_sample.tex.bcf'!
+[260] Biber.pm:114> INFO - ERRORS: 1
