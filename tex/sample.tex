@@ -1,0 +1,109 @@
+\documentclass{ltjsarticle}
+
+% 日本語プリアンブル
+
+\usepackage{luatexja-fontspec}
+\usepackage[hiragino-pron]{luatexja-preset}
+
+% 数式など
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{bm}
+
+% hyperref
+% \usepackage[unicode,hidelinks,pdfusetitle]{hyperref}
+% \usepackage[pdfencoding=auto,pdfa]{hyperref} % PDF/A compatible
+
+%%%% biblatexの設定
+\usepackage[style=authoryear, 
+backend=biber, 
+biblabel=brackets,
+%giveninits=true,
+uniquelist=false, 
+uniquename=init,
+isbn=false, 
+maxcitenames=3,
+dashed=false, 
+maxbibnames=999,
+doi=false,
+url=false
+]{biblatex}
+
+% 参考文献の情報を追加
+\addbibresource{myreference.bib}
+
+\DeclareDelimFormat{nameyeardelim}{\addcomma\space} % name-year間のcommaを追加
+\renewcommand*{\revsdnamepunct}{} % reference部分のfirst-last name間のcommaを除去
+
+\DeclareNameAlias{sortname}{family-given}
+\renewcommand*{\labelnamepunct}{\addspace}
+
+% titleのquoteを除去する(通常は保存する)
+% \DeclareFieldFormat
+%   [article,inbook,incollection,inproceedings,patent,thesis,unpublished]
+%   {title}{#1}
+
+\DeclareFieldFormat{titlecase}{\MakeSentenceCase*{#1}}
+
+\renewbibmacro*{in:}{%
+  \ifentrytype{article}
+    {\setunit{\addcomma\space}}
+    {\printtext{\bibstring{in}\intitlepunct}}}
+
+\DeclareFieldFormat{journaltitlecase}{#1}
+
+\renewbibmacro*{journal}{%
+    \ifboolexpr{
+    test {\iffieldundef{journaltitle}}
+    and
+    test {\iffieldundef{journalsubtitle}}
+  }
+    {}
+    {\printtext[journaltitle]{%
+       \printfield[journaltitlecase]{journaltitle}%
+       \setunit{\subtitlepunct}%
+       \printfield[journaltitlecase]{journalsubtitle}}}}
+
+\renewbibmacro*{volume+number+eid}{%
+  \printfield{volume}%
+  \setunit{\addcomma\space}%
+  \printfield{eid}}
+
+\DeclareFieldFormat[article,periodical]{volume}{\mkbibbold{#1}}% volume of a journal
+
+\DeclareFieldFormat{pages}{#1}
+
+
+% 日本語文献を引用す際に見た目を調整
+\newbibmacro*{finalnamedelim:{japanese}}{%
+  \ifnumgreater{\value{liststop}}{2}{\finalandcomma}{}%
+  \addspace\multinamedelim
+}
+\renewcommand*{\finalnamedelim}{%
+  \iflistundef{language}
+  {\ifnumgreater{\value{liststop}}{2}{\finalandcomma}{}%
+  \addspace\bibstring{and}\space}
+  {\usebibmacro*{finalnamedelim:\strlist{language}}}
+}
+\newbibmacro*{name:given-family:{japanese}}[4]{%
+  \usebibmacro{name:delim}{#1#2}\usebibmacro{name:hook}{#1#2}#1\bibnamedelimc#2}
+\DeclareNameFormat{given-family}{%
+  \iflistundef{language}{%
+    \ifgiveninits
+      {\usebibmacro{name:given-family}{\namepartfamily}{\namepartgiveni}{\namepartprefix}{\namepartsuffix}}
+      {\usebibmacro{name:given-family}{\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+  }
+  {\usebibmacro*{name:given-family:\strlist{language}}{\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+  \usebibmacro{name:andothers}
+}
+
+
+\begin{document}
+引用は\textcite{hoge}によって行われている．\\citeによっても行われる(\cite{hogehoge})．
+
+% Referenceの出力
+\printbibliography[title=参考文献]
+
+
+\end{document}
