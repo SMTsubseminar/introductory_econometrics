@@ -1,0 +1,133 @@
+---
+title: "Panel data"
+author: "Ryuya Ko"
+date: "12/6/2019"
+documentclass: ltjarticle
+output:  
+  pdf_document: 
+    latex_engine: lualatex 
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# パネルデータ分析
+
+- パネルデータ: クロスセクションデータを時系列に集計したもの。個別の観察単位に関して、複数期間に渡って観察・サンプリングしたもの
+
+したがって、モデルは次のように表される:
+
+$$
+y_{it} = x_{it}^\prime\beta + \varepsilon_{it}\:\:\mathrm{for}\:\:i=1,\cdots, n, \:\: t=1,\cdots, T.
+$$
+
+そして、誤差項$\varepsilon_{it}$が次のように分解できると仮定する:
+
+$$
+\epsilon_{it} = \alpha_{i} + v_{it}.
+$$
+
+ここで、$\alpha_i$は時間を通じて一定の個別効果であり、$v_{it}$は真の意味での誤差項であり、$E[v_{it} | x_{i1},\cdots, x_{iT}] = 0$が成り立つ。
+
+もし個別効果を$\alpha_i = z_{i}^\prime \gamma$などとして観察できるか、$\alpha_i = \alpha$とできるならば、これは通常のOLSとして扱うことができる(Pooled Regression)。
+
+そうではない場合、通常では以下の2つのモデルが考えられる:
+
+- 固定効果モデル(Fixed Effect Model):観測されない個別効果$\alpha_i$が存在し、$E[\alpha_i | x_{i1},\cdots, x_{iT}] \neq 0$である。
+
+- ランダム効果モデル(Random Effect Model): 観測されない個別効果$u_i$が存在し、$\alpha_i | x_{i1},\cdots, x_{iT} \sim (0, \sigma_u^2)$である。
+
+# 固定効果モデル
+
+## Within Estimator
+個別効果は時間を通じて一定であることから、各$i$について時間平均の偏差を求めることによって個別効果を除外できる:
+
+$$
+y_{it} - \bar{y}_i= (x_{it} - \bar{x}_i)^\prime \beta + v_{it} - \bar{v}_i
+$$
+$E[v_{it} | x_{i1},\cdots, x_{iT}] = 0$の仮定より、$y_{it} - \bar{y}_it$を$(x_{it} - \bar{x}_i)$に回帰することでBLUEな推定量を得られる。 これをFE estimatorと呼ぶ。
+
+FE estimatorは次のように表され、Within estimatorとも呼ばれる:
+
+$$
+b_{FE} = [S^{within}_{xx}]^{-1}S_{xy}^{within}
+$$
+$$
+S^{within}_{xx} = \sum_{i=1}^n \sum_{t=1}^T (x_{it} - \bar{x}_i)(x_{it} - \bar{x}_i)^\prime
+$$
+
+$$
+S_{xy}^{within} = \sum_{i=1}^n \sum_{t=1}^T (x_{it} - \bar{x}_i)(y_{it} - \bar{y}_i)
+$$
+
+## ダミー変数による表現
+
+固定効果をダミー変数を用いて表すことによって、FEモデルはLeast Squares Dummy Variable modelとも呼ばれる。(板書)
+
+## Rによる実装
+```{r setting}
+# setwd('~/econ/subsemi/introductory_econometrics/')
+library(dplyr);library(wooldridge);
+library(plm);library(stargazer)
+```
+
+
+```{r data}
+data("wagepan");help(wagepan)
+head(wagepan[0:5])
+```
+
+データはF. Vella and M. Verbeek (1998), “Whose Wages Do Unions Raise? A Dynamic Model of Unionism and Wage Rate Determination for Young Men,” で用いられているものを使う。労働組合の活動による賃金上昇の男女差?を研究した論文らしい。
+
+Rでのパネルデータ解析には`plm`パッケージを用いる。
+
+まずは縦持ちになっているdata.frameをパネルデータに変換する
+```{r panel}
+p.df <- pdata.frame(wagepan, index=c("nr", "year"))
+pdim(p.df) # dimensionを確認
+```
+
+Fixed Effect Modelの推定には、plm関数で`model="within"`を指定すればよい
+
+```{r est_fe}
+reg.fe <- plm(lwage~married+union+factor(year)*educ,
+              data=p.df, model="within")
+summary(reg.fe)
+```
+
+
+# ランダム効果モデル
+
+(板書)
+
+## Rでの実装
+
+`pvar`関数で時間変動、個人変動の有無を変数ごとに確認できる
+```{r time_var}
+pvar(p.df)
+```
+
+モデルの推定自体は固定効果モデルと同様に行うことができる。比較のため, OLSを含めてstargazerで出力する。
+
+```{r est_re}
+p.df$yr <- p.df$year %>% as.factor()
+reg.ols <- plm(lwage~educ+black+hisp+exper+I(exper^2)+married+union+yr,
+               data=p.df, model='pooling')
+reg.re <- plm(lwage~educ+black+hisp+exper+I(exper^2)+married+union+yr,
+               data=p.df, model='random')
+reg.fe <- plm(lwage~I(exper^2)+married+union+yr,
+              data=p.df, model="within")
+stargazer(reg.ols, reg.re, reg.fe, type='text',
+          column.labels=c("OLS", "RE", "FE"), keep.stat=c("n", "rsq"),
+          keep=c("educ", "bl", "hi", "exp", "mar", "uni"))
+```
+
+また、モデルの特定化検定は、ハウスマン検定を用いることができる。
+
+```{r hausman_test}
+phtest(reg.fe, reg.re)
+```
+
+有意水準5%以下でランダム効果モデルが正しい(個別効果の平均は0である)という帰無仮説が棄却された(板書)

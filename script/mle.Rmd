@@ -1,0 +1,114 @@
+---
+title: "MLE"
+author: "Ryuya Ko"
+date: "12/24/2019"
+documentclass: ltjarticle
+output:  
+  pdf_document: 
+    latex_engine: lualatex 
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 目的
+- 質的データの分析に際して、最尤推定を導入する
+- 最尤推定の大まかな概念を理解する
+- 最尤推定の実装方法を理解する
+
+# 最尤推定(Maximum likelihood estimation)
+
+カテゴリカルな値のみを取る質的データを扱う際、線形回帰モデルをそのまま適用するのは不適切なケースが多い。
+
+代表的な例として、`Yes/1`または`No/0`の2値のみを取るような被説明変数を持つモデルが考えられる。
+
+- 政府の施策への参加や、出産など
+- 線形確率モデルを適用しても、現実とマッチしない場合がある
+
+このような2値を取るデータを分析するモデルとして、トービットモデルやプロビットモデルを主に用いる。その際の推定手法として、最尤推定(Maximum likelihood estimation, MLE)を用いることが多い。
+
+## 尤度関数
+
+求めるパラメータを$\theta$, i番目の被説明変数を$y_i(=0,1)$とおく。n個の観測値が$i.i.d$のとき、そのjoint densityは次のように書ける:
+
+$$
+f(y_1, \ldots, y_n | \theta) = \prod_{i=1}^n f(y_i | \theta) \equiv L(\theta | y).
+$$
+
+
+$L(\theta | y)$を尤度関数と呼ぶ。$\theta$に条件づけたときのjoint densityを$\theta$についての関数と見なしていることに注意したい。
+
+
+直観的には、観測値の下で尤度関数を最大化するようなパラメータの推定値は、真のパラメータ($\theta_0$)にもっとも近いように思われる。実際、いくつかの正則条件(regularity condition)のもとで、MLE推定量$\hat{\theta}$は次の性質を持つ:
+
+- 一致性: $\hat{\theta} \overset{p}\to \theta_0$ as $n \to \infty$
+- 漸近正規性: $\sqrt{n} (\hat{\theta} - \theta_0) \overset{d}\sim N(0, (I(\theta_0))^{-1})$. ここで、
+$$
+I(\theta_0) = - E_0[\partial^2 \ln L/ \partial \theta_0 \partial\theta^\prime]
+$$
+- 漸近効率性: $\hat{\theta}$は漸近的に効率的であり, クラメール=ラオの下界を達成する.
+
+
+詳細な証明などはGreeneの"Econometric Analysis"の14章を参照のこと。
+
+## プロビット・トービットモデル
+(板書)
+
+# Rを用いた実装
+
+~~Rの組み込みパッケージ`stats4`にmle関数が格納されている。~~今回はひとまず使わない方針で進める。
+```{r setting}
+setwd('/Users/LOng/econ/shimotsu_seminar/subsemi/introductory_econometrics')
+library(dplyr);library(wooldridge)
+```
+
+
+
+```{r data}
+data("catholic");help("catholic")
+head(catholic)
+```
+
+```{r data2}
+str(catholic)
+```
+```{r data3}
+summary(catholic)
+```
+```{r probit}
+prmodel <- glm(cathhs~read12+math12+female+asian+hispan+black,
+             family=binomial(link="probit"), data=catholic)
+summary(prmodel)
+```
+
+```{r logit}
+lgmodel <- glm(cathhs~read12+math12+female+asian+hispan+black,
+             family=binomial(link="logit"), data=catholic)
+summary(lgmodel)
+```
+
+```{r hands_on}
+catholic[, 'const'] <- 1
+y <- catholic[, 'cathhs']
+X <- catholic[, c('const', 'read12', 'math12',
+                  'female', 'asian', 'hispan', 'black')]
+```
+
+```{r mle}
+log.likelihood <- function(beta){
+  cdf <- pnorm(as.matrix(X) %*% beta)
+  likelihood <- t(y) %*% log(cdf) + t(1-y) %*% log(1-cdf)
+  return(-likelihood)
+}
+```
+```{r test}
+log.likelihood(beta)
+```
+
+```{r optim}
+res <- optim(beta, log.likelihood, method='BFGS')
+res$value
+res$par
+```
