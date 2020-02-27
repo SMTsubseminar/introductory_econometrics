@@ -22,12 +22,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 カテゴリカルな値のみを取る質的データを扱う際、線形回帰モデルをそのまま適用するのは不適切なケースが多い。
 
-代表的な例として、`Yes/1`または`No/0`の2値のみを取るような被説明変数を持つモデルが考えられる。
+代表的な例として、`Yes/No`または`1/0`の2値のみを取るような被説明変数を持つモデルが考えられる。
 
-- 政府の施策への参加や、出産など
+- 政府の施策への参加や、出産
 - 線形確率モデルを適用しても、現実とマッチしない場合がある
+    - $\hat{y}_i > 1$となる場合など
 
-このような2値を取るデータを分析するモデルとして、トービットモデルやプロビットモデルを主に用いる。その際の推定手法として、最尤推定(Maximum likelihood estimation, MLE)を用いることが多い。
+このような2値を取るデータを分析するモデルとして、トービットモデルやプロビットモデルが用いられる。その際の推定手法として、最尤推定(Maximum likelihood estimation, MLE)を用いることが多い。
 
 ## 尤度関数
 
@@ -51,43 +52,69 @@ $$
 - 漸近効率性: $\hat{\theta}$は漸近的に効率的であり, クラメール=ラオの下界を達成する.
 
 
-詳細な証明などはGreeneの"Econometric Analysis"の14章を参照のこと。
+詳細な証明はGreeneの"Econometric Analysis"の14章などを参照のこと。
 
 ## プロビット・トービットモデル
 (板書)
 
 # Rを用いた実装
 
-~~Rの組み込みパッケージ`stats4`にmle関数が格納されている。~~今回はひとまず使わない方針で進める。
-```{r setting}
+~~Rの組み込みパッケージ`stats4`にmle関数が格納されている。~~Rの最適化用組み込み関数`optim`を用いて実装していく。
+
+いつもの如くdplyrとwooldrigeを読み込み:
+```{r setting, message=FALSE}
 setwd('/Users/LOng/econ/shimotsu_seminar/subsemi/introductory_econometrics')
 library(dplyr);library(wooldridge)
 ```
 
 
+データの中身をざっくり見ていく:
 
-```{r data}
+```{r data, eval=FALSE}
 data("catholic");help("catholic")
 head(catholic)
 ```
 
-```{r data2}
+```{r data2, eval=FALSE}
 str(catholic)
 ```
-```{r data3}
+```{r data3, eval=FALSE}
 summary(catholic)
 ```
-```{r probit}
+
+個人別のデモグラフィックと成績のデータに加え、本人がカトリック系の高校に通っているかどうか(`cathhs`)のデータが含まれていることがわかる。今回はこの`cathhs`の値を予測したいとする。
+
+## glm関数を用いた実装
+
+Rではプロビット・ロジットモデルともに一般化線形モデル(Generalized Linear Model, GLM)の一種として扱われ、glm関数で実装されている。
+他のGLMには、例えばポワソン回帰などがある。
+
+実装は以下の通りである。被説明変数が2値をとることから、`family=binomial`を指定し、`link="probit"`で関数形を指定する。詳細はRのドキュメントなどを参照されたい。
+
+```{r probit, tidy=TRUE}
 prmodel <- glm(cathhs~read12+math12+female+asian+hispan+black,
              family=binomial(link="probit"), data=catholic)
 summary(prmodel)
 ```
 
-```{r logit}
+```{r logit, tidy=TRUE}
 lgmodel <- glm(cathhs~read12+math12+female+asian+hispan+black,
              family=binomial(link="logit"), data=catholic)
 summary(lgmodel)
 ```
+
+
+## optimを用いた実装
+
+この資料ではプロビットモデルの実装のみを行う。興味のある人はロジットモデルの実装を試してみてほしい。
+
+手順は以下の通り:
+1. データの前処理。y, Xを定義する
+2. 最大化(最小化)する対象となる(対数)尤度関数を定義する。
+3. 適当な初期値を与え、optim関数を用いて最適化
+
+
+1の処理は次の通り。比較のため、上で用いたのと同じ説明変数を用いて、その結果を比較してみる。
 
 ```{r hands_on}
 catholic[, 'const'] <- 1
@@ -96,19 +123,34 @@ X <- catholic[, c('const', 'read12', 'math12',
                   'female', 'asian', 'hispan', 'black')]
 ```
 
+
+2の処理は以下の通り。あるbetaに対して、対数尤度$\sum_i\log f(y_i | \theta)$を計算するような関数を定める。optimは最小化しかしないため、予め返り値の符号を反転させておく。
 ```{r mle}
 log.likelihood <- function(beta){
   cdf <- pnorm(as.matrix(X) %*% beta)
   likelihood <- t(y) %*% log(cdf) + t(1-y) %*% log(1-cdf)
   return(-likelihood)
 }
+
+init <- c(.01, .01, .01, .01, .01, .02, .01)
 ```
-```{r test}
-log.likelihood(beta)
+また、`init`の名前で初期値を定めている。本来ならば乱数によって生成するべきだが、ここでは簡単のため適当な数字を入れた。
+
+Rの最適化関数optimは、最小化対象の関数と、その初期値を引数にとり、最適化計算を行う。手法は指定することもでき、ここで指定しているBFGSという手法は微分可能な関数の最適化手法(らしい)。詳しくはドキュメントを参照されたい。
+```{r optim}
+res <- optim(init, log.likelihood, method='BFGS')
 ```
 
-```{r optim}
-res <- optim(beta, log.likelihood, method='BFGS')
+`lm`オブジェクトなどと同様に、リスト型の返り値で諸々の結果を見ることができる。valueには最適化した結果、countsには最適化に要したiterationの回数など、parにはパラメータが格納されている。
+
+```{r optim_res, tidy=TRUE}
 res$value
+res$counts
 res$par
+```
+
+glmで推定したパラメータと比べると、ほとんど一致していることがわかる:
+
+```{r compara, tidy=TRUE}
+prmodel$coefficients
 ```
